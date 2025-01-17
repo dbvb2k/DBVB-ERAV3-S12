@@ -39,9 +39,9 @@ A Flask web application that utilizes a GPT model for generating text prediction
    Create a `requirements.txt` file with the following content:
 
    ```
-   Flask==2.0.3
-   torch==1.10.0
-   tiktoken==0.1.0
+   Flask==3.1.0
+   torch==2.5.1
+   tiktoken==0.8.0
    ```
 
    Then run:
