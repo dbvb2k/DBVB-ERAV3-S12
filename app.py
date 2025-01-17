@@ -1,142 +1,157 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, jsonify
 import torch
-import torch.nn.functional as F
 import tiktoken
-import os
 from train_get2_8_init import GPT, GPTConfig
+import os
 
 app = Flask(__name__)
 
-# Initialize global variables
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+# Global variables to store model and tokenizer
 model = None
 tokenizer = None
+device = None
 
-def load_model_and_tokenizer():
-    """Load the best model and initialize tokenizer"""
-    global model, tokenizer
+def init_model_and_tokenizer():
+    """Initialize model and tokenizer if not already initialized"""
+    global model, tokenizer, device
     
+    if model is None or tokenizer is None:
+        try:
+            tokenizer = tiktoken.get_encoding('gpt2')
+            model, device = load_model()
+        except Exception as e:
+            print(f"Failed to initialize model or tokenizer: {str(e)}")
+            raise
+
+def load_model():
     try:
-        # Initialize tokenizer
-        tokenizer = tiktoken.get_encoding('gpt2')
-        
-        # Find and load the best model checkpoint
-        best_dir = os.path.join('checkpoints', 'best')
-        if not os.path.exists(best_dir):
-            raise FileNotFoundError("No best model checkpoint found!")
-        
-        checkpoints = [f for f in os.listdir(best_dir) if f.endswith('.pt')]
-        if not checkpoints:
-            raise FileNotFoundError("No checkpoint files found!")
-        
-        latest_checkpoint = sorted(checkpoints)[-1]
-        checkpoint_path = os.path.join(best_dir, latest_checkpoint)
-        
-        # Load checkpoint and create model
-        checkpoint = torch.load(checkpoint_path, map_location=device)
-        config = GPTConfig(**checkpoint['config'])
+        # Initialize model with same config as training
+        config = GPTConfig(
+            n_layer=12,
+            n_head=12,
+            n_embd=768,
+            block_size=1024,
+            vocab_size=50257
+        )
         model = GPT(config)
-        model.load_state_dict(checkpoint['model_state_dict'])
         
-        # Prepare model for inference
+        # Check if model file exists
+        model_path = 'best_model.pt'
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(f"Model file '{model_path}' not found")
+        
+        # Load the trained weights
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        
+        # Load state dict with error handling
+        checkpoint = torch.load(model_path, map_location=device, weights_only=True)
+        
+        # Handle both full checkpoint and state dict only cases
+        if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
+            state_dict = checkpoint['model_state_dict']
+        else:
+            state_dict = checkpoint
+            
+        # Attempt to load state dict and catch specific error
+        try:
+            model.load_state_dict(state_dict, strict=True)
+        except RuntimeError as e:
+            print(f"Error loading model weights: {str(e)}")
+            print("Available keys in state_dict:", state_dict.keys())
+            print("Model's state_dict keys:", model.state_dict().keys())
+            
+            # Try loading with strict=False as fallback
+            print("Attempting to load with strict=False...")
+            model.load_state_dict(state_dict, strict=False)
+            print("Loaded with missing/unexpected keys")
+            
         model.to(device)
         model.eval()
-        
-        return True
-    except Exception as e:
-        print(f"Error loading model: {str(e)}")
-        return False
-
-def generate_text(prompt, num_predictions=5, max_length=20, temperature=0.8):
-    """Generate text based on prompt"""
-    try:
-        # Encode the prompt
-        input_ids = torch.tensor(tokenizer.encode(prompt)).unsqueeze(0).to(device)
-        
-        # Generate sequences
-        generated_sequences = []
-        with torch.no_grad():
-            for _ in range(num_predictions):
-                curr_input_ids = input_ids.clone()
-                
-                for _ in range(max_length):
-                    # Get predictions
-                    logits = model(curr_input_ids)[0]
-                    next_token_logits = logits[:, -1, :] / temperature
-                    
-                    # Sample next token
-                    probs = F.softmax(next_token_logits, dim=-1)
-                    next_token = torch.multinomial(probs, num_samples=1)
-                    
-                    # Append to sequence
-                    curr_input_ids = torch.cat([curr_input_ids, next_token], dim=1)
-                
-                # Decode and append result
-                generated_text = tokenizer.decode(curr_input_ids[0].tolist())
-                generated_sequences.append(generated_text)
-        
-        return generated_sequences
+        return model, device
         
     except Exception as e:
-        print(f"Error generating text: {str(e)}")
+        print(f"Error initializing model: {str(e)}")
         raise
 
-@app.route('/', methods=['GET', 'POST'])
-def home():
-    global model, tokenizer
+def generate_text(prompt, max_length=50, num_predictions=5, temperature=0.8):
+    global model, tokenizer, device
     
-    # Load model if not loaded
+    # Ensure model and tokenizer are initialized
     if model is None or tokenizer is None:
-        if not load_model_and_tokenizer():
-            return render_template('index.html', 
-                                errors=["Failed to load model"])
+        init_model_and_tokenizer()
     
-    if request.method == 'POST':
-        try:
-            # Get and validate inputs
-            prompt = request.form.get('prompt', '').strip()
-            num_predictions = int(request.form.get('num_predictions', 5))
-            max_length = int(request.form.get('max_length', 20))
-            temperature = float(request.form.get('temperature', 0.8))
-            
-            errors = []
-            if not prompt:
-                errors.append("Please enter some text prompt")
-            if num_predictions < 1 or num_predictions > 10:
-                errors.append("Number of predictions should be between 1 and 10")
-            if max_length < 1 or max_length > 100:
-                errors.append("Length should be between 1 and 100")
-            if temperature <= 0 or temperature > 2:
-                errors.append("Temperature should be between 0 and 2")
-                
-            if errors:
-                return render_template('index.html', errors=errors)
-                
-            # Generate text
-            generated_texts = generate_text(
-                prompt=prompt,
-                num_predictions=num_predictions,
-                max_length=max_length,
-                temperature=temperature
-            )
-            
-            return render_template(
-                'index.html',
-                prompt=prompt,
-                generated_texts=generated_texts,
-                num_predictions=num_predictions,
-                max_length=max_length,
-                temperature=temperature
-            )
-            
-        except Exception as e:
-            return render_template('index.html', 
-                                errors=[f"Error: {str(e)}"])
+    # Tokenize the prompt
+    input_ids = torch.tensor(tokenizer.encode(prompt)).unsqueeze(0).to(device)
     
+    predictions = []
+    with torch.no_grad():
+        for _ in range(num_predictions):
+            current_input = input_ids.clone()
+            
+            for _ in range(max_length):
+                # Get model's prediction
+                logits, _ = model(current_input)
+                logits = logits[:, -1, :] / temperature
+                
+                # Sample from the distribution
+                probs = torch.softmax(logits, dim=-1)
+                next_token = torch.multinomial(probs, num_samples=1)
+                
+                # Append to input
+                current_input = torch.cat([current_input, next_token], dim=1)
+            
+            # Decode the generated sequence
+            generated_tokens = current_input[0].tolist()[len(input_ids[0]):]
+            generated_text = tokenizer.decode(generated_tokens)
+            predictions.append(generated_text)
+    
+    return predictions
+
+@app.route('/')
+def home():
+    # Initialize model on first request
+    if model is None:
+        init_model_and_tokenizer()
     return render_template('index.html')
 
+@app.route('/generate', methods=['POST'])
+def generate():
+    try:
+        data = request.get_json()
+        
+        # Validate prompt
+        prompt = data.get('prompt', '').strip()
+        if not prompt:
+            return jsonify({'error': 'Prompt cannot be empty'}), 400
+            
+        # Validate and convert numeric parameters with bounds
+        try:
+            num_predictions = int(data.get('num_predictions', 5))
+            if not 1 <= num_predictions <= 10:
+                return jsonify({'error': 'Number of predictions must be between 1 and 10'}), 400
+                
+            max_length = int(data.get('max_length', 50))
+            if not 1 <= max_length <= 200:
+                return jsonify({'error': 'Maximum length must be between 1 and 200'}), 400
+                
+            temperature = float(data.get('temperature', 0.8))
+            if not 0.1 <= temperature <= 2.0:
+                return jsonify({'error': 'Temperature must be between 0.1 and 2.0'}), 400
+                
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid numeric parameters provided'}), 400
+        
+        predictions = generate_text(
+            prompt=prompt,
+            max_length=max_length,
+            num_predictions=num_predictions,
+            temperature=temperature
+        )
+        
+        return jsonify({'predictions': predictions})
+        
+    except Exception as e:
+        return jsonify({'error': f'An error occurred: {str(e)}'}), 500
+
 if __name__ == '__main__':
-    print(f"Using device: {device}")
-    if not load_model_and_tokenizer():
-        print("Failed to load model! Please check the errors above.")
     app.run(debug=True) 

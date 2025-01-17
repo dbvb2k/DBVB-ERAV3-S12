@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>GPT Word Predictor</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            color: #2d3748;
+        }
+        .container {
+            max-width: 800px;
+            margin: 5px auto;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+        h1 {
+            color: #4a5568;
+            text-align: center;
+            margin-bottom: 20px;
+            margin-top: 0px;
+            font-size: 2em;
+            font-weight: 600;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .input-group {
+            margin-bottom: 25px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #4a5568;
+        }
+        textarea {
+            width: 96%;
+            height: 60px;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 1em;
+            transition: all 0.3s ease;
+            font-family: 'Poppins', sans-serif;
+            resize: vertical;
+        }
+        textarea:focus {
+            border-color: #667eea;
+            outline: none;
+            padding: 15px;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+        }
+        input[type="number"] {
+            width: 120px;
+            padding: 8px 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: all 0.3s ease;
+        }
+        input[type="number"]:focus {
+            border-color: #667eea;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+        }
+        .hint {
+            font-size: 0.7em;
+            color: #718096;
+            margin-left: 10px;
+            font-style: italic;
+        }
+        .error {
+            color: #e53e3e;
+            font-size: 0.9em;
+            margin-top: 5px;
+            display: none;
+            padding: 8px;
+            border-radius: 6px;
+            background-color: #fff5f5;
+        }
+        .input-error {
+            border-color: #e53e3e;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.1em;
+            font-weight: 500;
+            width: 100%;
+            transition: all 0.3s ease;
+            margin-top: 10px;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        #results {
+            margin-top: 30px;
+        }
+        .prediction {
+            background: white;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 10px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s ease;
+        }
+        .prediction:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .prediction strong {
+            color: #4a5568;
+            font-size: 1.1em;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #4a5568;
+        }
+        .loading::after {
+            content: '...';
+            animation: dots 1.5s steps(5, end) infinite;
+        }
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60%, 100% { content: '...'; }
+        }
+        .parameter-group {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .parameter-item {
+            flex: 1;
+            min-width: 200px;
+        }
+        .results-header {
+            color: #4a5568;
+            font-size: 1.2em;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        .input-hint-group {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            width: 300px;
+        }
+        .input-hint-group input[type="number"] {
+            width: 80px;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+        .hint {
+            font-size: 0.7em;
+            color: #718096;
+            font-style: italic;
+            margin: 0;
+            flex: 1;
+            white-space: normal;
+            line-height: 1.2;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 GPT Word Predictor</h1>
+        <div class="input-group">
+            <label for="prompt">Enter your prompt:</label>
+            <textarea id="prompt" placeholder="Type your creative text here..." required></textarea>
+            <div id="prompt-error" class="error">Please enter a prompt</div>
+        </div>
+        <div class="parameter-group">
+            <div class="parameter-item">
+                <label for="num_predictions">No of predictions:</label>
+                <input type="number" id="num_predictions" value="5" min="1" max="10" required>
+                <div id="num-predictions-error" class="error">Please enter a number between 1 and 10</div>
+            </div>
+            <div class="parameter-item">
+                <label for="max_length">Maximum length:</label>
+                <input type="number" id="max_length" value="50" min="1" max="200" required>
+                <div id="max-length-error" class="error">Please enter a number between 1 and 200</div>
+            </div>
+            <div class="parameter-item">
+                <label for="temperature">Temperature:</label>
+                <div class="input-hint-group">
+                    <input type="number" id="temperature" value="0.8" min="0.1" max="2.0" step="0.1" required>
+                    <span class="hint">Higher values = more random, Lower values = more focused</span>
+                </div>
+                <div id="temperature-error" class="error">Please enter a number between 0.1 and 2.0</div>
+            </div>
+        </div>
+        <button onclick="generateText()">Generate Text ✨</button>
+        <div id="results"></div>
+    </div>
+
+    <script>
+        function validateInputs() {
+            let isValid = true;
+            
+            // Validate prompt
+            const prompt = document.getElementById('prompt').value.trim();
+            const promptError = document.getElementById('prompt-error');
+            if (!prompt) {
+                promptError.style.display = 'block';
+                document.getElementById('prompt').classList.add('input-error');
+                isValid = false;
+            } else {
+                promptError.style.display = 'none';
+                document.getElementById('prompt').classList.remove('input-error');
+            }
+            
+            // Validate number of predictions
+            const numPredictions = parseInt(document.getElementById('num_predictions').value);
+            const numPredictionsError = document.getElementById('num-predictions-error');
+            if (isNaN(numPredictions) || numPredictions < 1 || numPredictions > 10) {
+                numPredictionsError.style.display = 'block';
+                document.getElementById('num_predictions').classList.add('input-error');
+                isValid = false;
+            } else {
+                numPredictionsError.style.display = 'none';
+                document.getElementById('num_predictions').classList.remove('input-error');
+            }
+            
+            // Validate max length
+            const maxLength = parseInt(document.getElementById('max_length').value);
+            const maxLengthError = document.getElementById('max-length-error');
+            if (isNaN(maxLength) || maxLength < 1 || maxLength > 200) {
+                maxLengthError.style.display = 'block';
+                document.getElementById('max_length').classList.add('input-error');
+                isValid = false;
+            } else {
+                maxLengthError.style.display = 'none';
+                document.getElementById('max_length').classList.remove('input-error');
+            }
+            
+            // Validate temperature
+            const temperature = parseFloat(document.getElementById('temperature').value);
+            const temperatureError = document.getElementById('temperature-error');
+            if (isNaN(temperature) || temperature < 0.1 || temperature > 2.0) {
+                temperatureError.style.display = 'block';
+                document.getElementById('temperature').classList.add('input-error');
+                isValid = false;
+            } else {
+                temperatureError.style.display = 'none';
+                document.getElementById('temperature').classList.remove('input-error');
+            }
+            
+            return isValid;
+        }
+
+        function generateText() {
+            if (!validateInputs()) {
+                return;
+            }
+            
+            const prompt = document.getElementById('prompt').value.trim();
+            const numPredictions = parseInt(document.getElementById('num_predictions').value);
+            const maxLength = parseInt(document.getElementById('max_length').value);
+            const temperature = parseFloat(document.getElementById('temperature').value);
+            const resultsDiv = document.getElementById('results');
+            
+            resultsDiv.innerHTML = '<div class="loading">Generating predictions</div>';
+            
+            fetch('/generate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    prompt: prompt,
+                    num_predictions: numPredictions,
+                    max_length: maxLength,
+                    temperature: temperature
+                }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    resultsDiv.innerHTML = `<div class="error" style="display: block">Error: ${data.error}</div>`;
+                } else {
+                    resultsDiv.innerHTML = '<div class="results-header">Generated Predictions</div>';
+                    data.predictions.forEach((pred, index) => {
+                        resultsDiv.innerHTML += `
+                            <div class="prediction">
+                                <strong>${index + 1}.</strong> ${pred}
+                            </div>
+                        `;
+                    });
+                }
+            })
+            .catch((error) => {
+                resultsDiv.innerHTML = `<div class="error" style="display: block">Error: ${error}</div>`;
+            });
+        }
+    </script>
+</body>
+</html> 

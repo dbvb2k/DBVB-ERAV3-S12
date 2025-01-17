@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text Generator</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6c63ff;
+            --secondary: #4CAF50;
+            --danger: #ff4757;
+            --dark: #2f3542;
+            --light: #f1f2f6;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', sans-serif;
+            font-size: 0.9em;
+        }
+
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 1rem;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            color: var(--dark);
+            text-align: center;
+            margin-bottom: 1.5rem;
+            font-size: 2rem;
+            background: linear-gradient(45deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.3rem;
+            color: var(--dark);
+            font-weight: 600;
+            font-size: 1rem;
+        }
+
+        input, textarea {
+            width: 100%;
+            padding: 0.6rem;
+            border: 2px solid var(--light);
+            border-radius: 6px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        textarea {
+            height: 80px;
+            resize: vertical;
+        }
+
+        input:focus, textarea:focus {
+            border-color: var(--primary);
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(108, 99, 255, 0.2);
+        }
+
+        button {
+            background: linear-gradient(45deg, var(--primary), var(--secondary));
+            color: white;
+            padding: 0.8rem 1.5rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: transform 0.3s ease;
+            width: 100%;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+        }
+
+        .error {
+            color: var(--danger);
+            margin-bottom: 0.8rem;
+            padding: 0.4rem;
+            border-left: 3px solid var(--danger);
+            background: rgba(255, 71, 87, 0.1);
+            font-size: 1rem;
+        }
+
+        .results {
+            margin-top: 1.5rem;
+            padding: 0.8rem;
+            background: var(--light);
+            border-radius: 6px;
+        }
+
+        .result-item {
+            background: white;
+            padding: 0.8rem;
+            margin-bottom: 0.8rem;
+            border-radius: 6px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-left: 3px solid var(--primary);
+        }
+
+        .prompt {
+            font-weight: 600;
+            color: var(--primary);
+            margin-bottom: 0.3rem;
+            font-size: 1rem;
+        }
+
+        .generated-text {
+            color: var(--dark);
+            line-height: 1.4;
+            font-size: 1rem;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+        }
+
+        /* Animation */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(15px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .result-item {
+            animation: fadeIn 0.4s ease forwards;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>✨ AI Text Generator ✨</h1>
+        
+        {% if errors %}
+            {% for error in errors %}
+                <div class="error">{{ error }}</div>
+            {% endfor %}
+        {% endif %}
+
+        <form method="POST">
+            <div class="form-group">
+                <label for="prompt">Enter your text:</label>
+                <textarea name="prompt" id="prompt" rows="4" required>{{ prompt if prompt else '' }}</textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="num_predictions">Number of predictions (1-10):</label>
+                <input type="number" name="num_predictions" id="num_predictions" 
+                       value="{{ num_predictions if num_predictions else 5 }}" 
+                       min="1" max="10" required>
+            </div>
+
+            <div class="form-group">
+                <label for="max_length">Maximum length (1-100):</label>
+                <input type="number" name="max_length" id="max_length" 
+                       value="{{ max_length if max_length else 20 }}" 
+                       min="1" max="100" required>
+            </div>
+
+            <div class="form-group">
+                <label for="temperature">Temperature (0-2):</label>
+                <input type="number" name="temperature" id="temperature" 
+                       value="{{ temperature if temperature else 0.8 }}" 
+                       min="0" max="2" step="0.1" required>
+            </div>
+
+            <button type="submit">Generate Text 🚀</button>
+        </form>
+
+        {% if generated_texts %}
+            <div class="results">
+                <h2>Generated Results:</h2>
+                {% for text in generated_texts %}
+                    <div class="result-item">
+                        <div class="prompt">Prediction {{ loop.index }}:</div>
+                        <div class="generated-text">{{ text }}</div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+</body>
+</html> 
